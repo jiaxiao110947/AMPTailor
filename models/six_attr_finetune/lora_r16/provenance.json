@@ -1,0 +1,15 @@
+{
+  "method": "lora_r16",
+  "finetune_mode": "lora",
+  "source_step": 2500,
+  "selection": "composite_score",
+  "lr": 1.5e-05,
+  "train_bs": 128,
+  "grad_accum": 2,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "gradient_checkpointing": 0,
+  "freeze_bottom_layers": 10,
+  "base_model": "models/AMPGuide",
+  "note": "综合分最高的六属性单 LoRA 基线"
+}
