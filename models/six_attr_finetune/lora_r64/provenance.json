@@ -1,0 +1,15 @@
+{
+  "method": "lora_r64",
+  "finetune_mode": "lora",
+  "source_step": 1500,
+  "selection": "composite_score",
+  "lr": 1.5e-05,
+  "train_bs": 78,
+  "grad_accum": 3,
+  "lora_r": 64,
+  "lora_alpha": 128,
+  "gradient_checkpointing": 0,
+  "freeze_bottom_layers": 10,
+  "base_model": "models/AMPGuide",
+  "note": "与 r16 相同的 LoRA 目标模块，秩为 64"
+}
