@@ -1,0 +1,15 @@
+{
+  "method": "bitfit",
+  "finetune_mode": "bitfit",
+  "source_step": 5000,
+  "selection": "composite_score",
+  "lr": 0.0002,
+  "train_bs": 90,
+  "grad_accum": 2,
+  "lora_r": null,
+  "lora_alpha": null,
+  "gradient_checkpointing": 0,
+  "freeze_bottom_layers": 10,
+  "base_model": "models/AMPGuide",
+  "note": "只训练 bias 和 lm_head"
+}
