@@ -1,0 +1,15 @@
+{
+  "method": "full_ft",
+  "finetune_mode": "full",
+  "source_step": 500,
+  "selection": "composite_score",
+  "lr": 8e-06,
+  "train_bs": 168,
+  "grad_accum": 1,
+  "lora_r": null,
+  "lora_alpha": null,
+  "gradient_checkpointing": 1,
+  "freeze_bottom_layers": 10,
+  "base_model": "models/AMPGuide",
+  "note": "全参数微调，按 composite 选取 step 500"
+}
