@@ -1,7 +1,7 @@
 # AMPTailor
 
 **Composable generative-expert guidance enables programmable antimicrobial peptide design**  
-**可组合、多属性可控的抗菌肽生成框架**
+**基于可组合生成专家引导的可编程抗菌肽设**
 
 AMPTailor 面向用户指定的多维功能要求进行 *de novo* 抗菌肽（antimicrobial peptide, AMP）生成。框架将短肽语言模型提供的长度可控生成能力，与可组合的抗菌活性、安全性及物种特异性效力条件相结合，用于探索不同条件组合下的候选肽序列，而不是仅依赖先生成、后筛选的流程。
 
