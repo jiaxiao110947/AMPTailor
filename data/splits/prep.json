@@ -1,0 +1,24 @@
+{
+  "csv_path": "data/corpus/sequence_species_mic_binned_for_six_attr.csv",
+  "backbone": "models/AMPGuide",
+  "seed": 42,
+  "n_rows": 38575,
+  "n_unique_seq": 14916,
+  "n_train": 26951,
+  "n_val": 5747,
+  "n_test": 5877,
+  "n_seq_train": 10440,
+  "n_seq_val": 2238,
+  "n_seq_test": 2238,
+  "freeze_bottom_layers": 8,
+  "max_length": 192,
+  "epochs": 5,
+  "lr": 2e-05,
+  "labeled_counts_train": {
+    "GP": 26951,
+    "GN": 26951,
+    "FU": 26951,
+    "SF": 11508,
+    "MIC": 23774
+  }
+}
