@@ -1,4 +1,4 @@
-# PeptidePrior
+#AMPTailor
 
 这是一套可复现的发布目录，名称与文章一致。多阶段预训练得到四个长度可控模型：`BasePLM`、`PeptidePrior`、`AMPGuide`、`CountAMPGuide`。后面还有六属性微调，以及在 AMPGuide 上训练的五个判别器。权重、训练代码、生成和评估代码、语料都在仓库里。没有训练日志、wandb、中间 checkpoint 和别人的打分器。
 
