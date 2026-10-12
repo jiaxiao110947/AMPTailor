@@ -1,12 +1,12 @@
-# 运行环境
+# Runtime environment
 
-发布时的训练与导出环境如下。长度模型的 batch 按约 96GB 显存设定（`train_bs=1024`）。六属性 LoRA 的发布超参是 `train_bs=128`、`grad_accum=2`。显存更小的机器需要按比例减小 batch，并相应增加梯度累积，使有效 batch 接近原来的值。
+The training and export environment used for this release is listed below. Length-model batch settings assume approximately 96 GB of GPU memory (`train_bs=1024`). Released six-attribute LoRA hyperparameters use `train_bs=128` and `grad_accum=2`. On GPUs with less memory, reduce the batch size and increase gradient accumulation to keep the effective batch size close to the original.
 
 ## Python
 
-| 项 | 值 |
+| Item | Value |
 | --- | --- |
-| 环境路径 | `/root/autodl-tmp/conda_envs/proteogpt_py312` |
+| Environment path | `/root/autodl-tmp/conda_envs/proteogpt_py312` |
 | Python | 3.12.12 |
 | torch | 2.9.1+cu128 |
 | CUDA | 12.8 |
@@ -19,7 +19,7 @@
 | safetensors | 0.7.0 |
 | tokenizers | 0.22.2 |
 
-激活：
+Activate the original environment:
 
 ```bash
 source /root/miniconda3/etc/profile.d/conda.sh
@@ -27,14 +27,14 @@ conda activate /root/autodl-tmp/conda_envs/proteogpt_py312
 export PYTHON="$(which python)"
 ```
 
-其他机器不必使用这个 conda 路径。装好 `requirements.txt` 里列出的版本，并把 `PYTHON` 指到那个解释器即可。`torch==2.9.1` 需要 CUDA 12.8 对应的 wheel，不要装成 CPU 版。
+Other machines do not need to use this conda path. Install the versions listed in `requirements.txt` and point `PYTHON` to the resulting interpreter. For `torch==2.9.1`, use the CUDA 12.8 wheel rather than the CPU build.
 
-## 本仓库不依赖的东西
+## Dependencies not required by this repository
 
-- wandb。启动脚本默认 `WANDB_MODE=disabled`，也不传 `--wandb_enable`。
-- ampsorter、BioToxiPept、iAMPCN、AMP-Designer、APEX。生成和打分都不调用它们。
-- AMP vs non-AMP 判别器。那个头的骨干是 PeptidePrior，没有放进本仓库。
+- wandb: Launch scripts default to `WANDB_MODE=disabled` and do not pass `--wandb_enable`.
+- ampsorter, BioToxiPept, iAMPCN, AMP-Designer, and APEX: Generation and scoring do not invoke them.
+- The AMP vs non-AMP discriminator: This head uses a PeptidePrior backbone and is not included in this repository.
 
-## 离线加载
+## Offline loading
 
-`configs/paths.env` 会设置 `TRANSFORMERS_OFFLINE=1` 和 `HF_HUB_OFFLINE=1`。权重都在仓库内，不需要访问 Hugging Face。
+`configs/paths.env` sets `TRANSFORMERS_OFFLINE=1` and `HF_HUB_OFFLINE=1`. Once the weights have been downloaded into the local project directories, model loading does not require Hugging Face access.

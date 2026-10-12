@@ -1,82 +1,82 @@
-# 发布权重对应的原 checkpoint
+# Original checkpoints for released weights
 
-推理文件只保留 `config`、tokenizer、`model.safetensors` 或 `adapter_model.safetensors`，以及 LoRA 的 `stop_head.pt`。没有 `optimizer.pt`、中间 step 和训练日志。
+Inference releases retain only `config`, the tokenizer, `model.safetensors` or `adapter_model.safetensors`, and the LoRA `stop_head.pt`. Optimizer state (`optimizer.pt`), intermediate checkpoints, and training logs are excluded.
 
-`adapter_config.json` 里的 `base_model_name_or_path` 写成 `models/AMPGuide`。加载代码会先找这个相对路径，找不到时再用仓库里的 `models/AMPGuide`。请在仓库根目录运行脚本。
+In `adapter_config.json`, `base_model_name_or_path` is set to `models/AMPGuide`. Loading code first checks this relative path, then falls back to `models/AMPGuide` under the repository root. Run scripts from the repository root.
 
-## 生成模型
+## Generation models
 
 - `models/BasePLM`
-  - 文章中的 BasePLM。12 层 decoder-only Transformer，约 124M 参数，在 Swiss-Prot 上预训练。PeptidePrior 从这里继续训练。
-  - 只保留 `model.safetensors`，不保留重复的 `pytorch_model.bin`。
+  - BasePLM in the manuscript: a 12-layer decoder-only Transformer with approximately 124M parameters, pretrained on Swiss-Prot. PeptidePrior continues training from this model.
+  - Only `model.safetensors` is retained; the duplicate `pytorch_model.bin` is excluded.
 - `models/PeptidePrior`
-  - 文章中的 PeptidePrior。短肽继续预训练，原目录 `length_base_model1/MAE优先的checkpoint`，等于 `checkpoint-84000`。
-  - 按长度 MAE 选取。说明见目录里的 `FROZEN_README.txt`。
+  - PeptidePrior in the manuscript: continued pretraining on short peptides. The original length-MAE-selected checkpoint under `length_base_model1` corresponds to `checkpoint-84000`.
+  - Selected by length MAE. See `FROZEN_README.txt` in the model directory for details.
 - `models/AMPGuide`
-  - 文章中的 AMPGuide。由 PeptidePrior 在 AMP 序列上适配，原目录 `length_expert_model1/best_model`，等于 `checkpoint-1088`。
-  - 按 eval loss 选取。训练最后跑到 step 1472，发布的是 eval loss 最好的 1088。
+  - AMPGuide in the manuscript: adaptation of PeptidePrior to AMP sequences. Original directory: `length_expert_model1/best_model`, corresponding to `checkpoint-1088`.
+  - Selected by evaluation loss. Training ended at step 1472; the release uses step 1088, which had the best evaluation loss.
 - `models/CountAMPGuide`
-  - 文章中的 CountAMPGuide。由 PeptidePrior 在 non-AMP 短肽上适配，原目录 `length_anti_model1/best_model`，等于 `checkpoint-12000`。
+  - CountAMPGuide in the manuscript: adaptation of PeptidePrior to non-AMP short peptides. Original directory: `length_anti_model1/best_model`, corresponding to `checkpoint-12000`.
 - `models/six_attr_bipolar`
-  - 原目录 `length_expert_model1_six_attr_bipolar_notraineval_20260913_114605/checkpoint-5000`。
-  - 与 `..._offlineeval_20260915_093322/checkpoint-5000` 是同一份 adapter，只留这一份。
-  - LoRA r=16，alpha=32，包含 `lm_head`。
+  - Original directory: `length_expert_model1_six_attr_bipolar_notraineval_20260913_114605/checkpoint-5000`.
+  - Identical to the adapter in `..._offlineeval_20260915_093322/checkpoint-5000`; only one copy is retained.
+  - LoRA r=16, alpha=32, including `lm_head`.
 - `models/six_attr_strict_combo`
-  - 原目录 `length_expert_model1_six_attr_strict_combo_notraineval_20260912_093641/checkpoint-5000`。
+  - Original directory: `length_expert_model1_six_attr_strict_combo_notraineval_20260912_093641/checkpoint-5000`.
 - `models/six_attr_disentangle`
-  - 原目录 `length_expert_model1_six_attr_disentangle_lora/run1/adapters`。
-  - 训练保存时每个属性目录里都复制了全部 adapter，内容相同。这里每个属性只留一份，目录直接是 `gp/`、`gn/`、`fu/`、`sf/`、`len/`，与 `load_multi_adapters` 的读法一致。
+  - Original directory: `length_expert_model1_six_attr_disentangle_lora/run1/adapters`.
+  - Training saves copied all adapters into each attribute directory, producing duplicate contents. The release retains one copy per attribute in `gp/`, `gn/`, `fu/`, `sf/`, and `len/`, matching the directory layout expected by `load_multi_adapters`.
 
-## 六属性五种微调
+## Five six-attribute fine-tuning strategies
 
-同一套六属性数据、从 `models/AMPGuide` 出发，训练 5000 step，每 500 step 存一次。发布目录只留每种方法按 composite 选出的那一档，目录是 `models/six_attr_finetune/<方法>/`。全参三种附带 tokenizer 和 `config.json`。LoRA 两种的 `base_model_name_or_path` 是 `models/AMPGuide`。
+All strategies use the same six-attribute data and start from `models/AMPGuide`, training for 5000 steps with checkpoints every 500 steps. Each release retains only the checkpoint selected by the composite metric in `models/six_attr_finetune/<method>/`. The three strategies that save full model weights include a tokenizer and `config.json`. Both LoRA strategies set `base_model_name_or_path` to `models/AMPGuide`.
 
-| 目录 | 方式 | step | 学习率 | 训练 batch |
+| Directory | Strategy | Step | Learning rate | Training batch × gradient accumulation |
 |------|------|------|--------|------------|
 | `lora_r16` | LoRA r=16, alpha=32 | 2500 | 1.5e-5 | 128 × 2 |
-| `full_ft` | 全参数 | 500 | 8e-6 | 168 × 1 |
-| `freeze_top2` | 冻结底部 10 层，训练顶部 2 层 | 1000 | 1e-5 | 168 × 1 |
+| `full_ft` | Full-parameter fine-tuning | 500 | 8e-6 | 168 × 1 |
+| `freeze_top2` | Freeze the bottom 10 layers; train the top 2 | 1000 | 1e-5 | 168 × 1 |
 | `lora_r64` | LoRA r=64, alpha=128 | 1500 | 1.5e-5 | 78 × 3 |
-| `bitfit` | 只训练 bias 和 lm_head | 5000 | 2e-4 | 90 × 2 |
+| `bitfit` | Train only biases and lm_head | 5000 | 2e-4 | 90 × 2 |
 
-对应原目录：
+Original directories:
 
-- `lora_r16`：`length_expert_model1_six_attr_lora_notraineval_20260609_101447/checkpoint-2500`
-- `full_ft`：`six_attr_full_ft_20260707_033616/checkpoint-500`
-- `freeze_top2`：`six_attr_freeze_top2_20260707_095800/checkpoint-1000`
-- `lora_r64`：`six_attr_lora_r64_20260707_095800/checkpoint-1500`
-- `bitfit`：`six_attr_bitfit_20260707_095800/checkpoint-5000`
+- `lora_r16`: `length_expert_model1_six_attr_lora_notraineval_20260609_101447/checkpoint-2500`
+- `full_ft`: `six_attr_full_ft_20260707_033616/checkpoint-500`
+- `freeze_top2`: `six_attr_freeze_top2_20260707_095800/checkpoint-1000`
+- `lora_r64`: `six_attr_lora_r64_20260707_095800/checkpoint-1500`
+- `bitfit`: `six_attr_bitfit_20260707_095800/checkpoint-5000`
 
-重训入口是 `scripts/train_six_attr_finetune.sh`。生成是 `scripts/generate_six_attr_finetune.sh`。评估是 `scripts/eval_six_attr_finetune.sh`，协议脚本是 `src/multi_attr/07.eval_checkpoint_protocol_five_attr_single_lora.py`。属性打分用本仓库的 GP、GN、FU、SF、MIC 五个专家骨干判别器。SF 的 1 表示有毒。MIC 只写入五档分布，不进入四比特组合条件。
+Retraining: `scripts/train_six_attr_finetune.sh`. Generation: `scripts/generate_six_attr_finetune.sh`. Evaluation: `scripts/eval_six_attr_finetune.sh`, using the protocol in `src/multi_attr/07.eval_checkpoint_protocol_five_attr_single_lora.py`. Attribute scoring uses the five GP, GN, FU, SF, and MIC discriminators with expert-model backbones. SF label 1 means toxic. MIC is recorded only as a five-bin distribution and is not included in the four-bit combination condition.
 
-## 判别器
+## Discriminators
 
-骨干都是 `models/AMPGuide`。来源是 `six_attr_discriminators_hybrid` 的 `best.pt`，与后来打包装的 english 分类器里这五个头是同一份文件。
+All backbones use `models/AMPGuide`. Weights originate from `best.pt` in `six_attr_discriminators_hybrid` and are identical to the five heads subsequently packaged as the English-language classifiers.
 
-- `models/discriminators/gram_positive`：GP，二分类，LoRA r=32，按验证 AUROC 选取
-- `models/discriminators/gram_negative`：GN
-- `models/discriminators/antifungal`：FU
-- `models/discriminators/safety`：SF，0 为低毒，1 为有毒
-- `models/discriminators/mic`：MIC 五档。输入是原子 `SPxx` 加氨基酸 id。tokenizer 在 `models/discriminators/mic_tokenizer`
+- `models/discriminators/gram_positive`: GP, binary classification, LoRA r=32, selected by validation AUROC
+- `models/discriminators/gram_negative`: GN
+- `models/discriminators/antifungal`: FU
+- `models/discriminators/safety`: SF, 0 = low toxicity, 1 = toxic
+- `models/discriminators/mic`: Five MIC bins. Input consists of atomic `SPxx` tokens and amino-acid IDs. The tokenizer is in `models/discriminators/mic_tokenizer`.
 
-每个头的目录里：
+Each head directory contains:
 
-- `weights/best.pt`：权重
-- `backbone`：指向 `models/AMPGuide`
-- `tokenizer`：二分类头指向 AMPGuide 的 tokenizer；MIC 指向 `mic_tokenizer`
+- `weights/best.pt`: Weights
+- `backbone`: Points to `models/AMPGuide`
+- `tokenizer`: Binary heads use the AMPGuide tokenizer; MIC uses `mic_tokenizer`
 
-没有放入 `amp.pt`。那个判别器的骨干是 PeptidePrior。
+`amp.pt` is excluded. That discriminator uses a PeptidePrior backbone.
 
-## 语料
+## Corpora
 
-- `data/corpus/uniprot_short_peptides.txt`：PeptidePrior，3,219,459 行
-- `data/corpus/AMP.txt`：AMPGuide，16,062 行
-- `data/corpus/nonAMP.txt`：CountAMPGuide，2,821,399 行
-- `data/corpus/sequence_species_mic_binned_for_six_attr.csv`：六属性专家和判别器
-- `data/splits/split_{train,val,test}.csv`：hybrid 使用的按序列划分，seed=42
+- `data/corpus/uniprot_short_peptides.txt`: PeptidePrior, 3,219,459 lines
+- `data/corpus/AMP.txt`: AMPGuide, 16,062 lines
+- `data/corpus/nonAMP.txt`: CountAMPGuide, 2,821,399 lines
+- `data/corpus/sequence_species_mic_binned_for_six_attr.csv`: Six-attribute experts and discriminators
+- `data/splits/split_{train,val,test}.csv`: Sequence-based splits used by hybrid training, seed=42
 
-长度条件文本和 indexed 划分由 `scripts/train_PeptidePrior.sh`、`scripts/train_AMPGuide.sh`、`scripts/train_CountAMPGuide.sh` 写到 `outputs/prepared/`，seed=42，val/test 比例都是 0.001。这些文件可以重新生成，所以没有放进仓库。
+Length-conditioned text and indexed splits are written to `outputs/prepared/` by `scripts/train_PeptidePrior.sh`, `scripts/train_AMPGuide.sh`, and `scripts/train_CountAMPGuide.sh`, using seed=42 and validation/test ratios of 0.001 each. These files can be regenerated and are not included in the repository.
 
-## 没有放进来的实验
+## Experiments excluded from the release
 
-lowtox 全参、union20k、五属性 LoRA、判别器 v2/v3/fullft 的旧权重。六属性五种微调只保留上表那一档，不保留每 500 step 的中间 checkpoint。判别器更早配方的训练脚本仍在 `src/discriminators/`，需要的话可以重训，输出在 `outputs/`。
+Excluded weights include lowtox full-parameter fine-tuning, union20k, five-attribute LoRA, and earlier discriminator v2/v3/fullft models. For each of the five six-attribute fine-tuning strategies, only the checkpoint listed above is retained; intermediate checkpoints saved every 500 steps are excluded. Earlier discriminator training recipes remain in `src/discriminators/` and can be retrained with outputs written to `outputs/`.
