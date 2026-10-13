@@ -3,6 +3,13 @@
 """v3 discriminators: mean-pool + AA embedding + physchem + species emb (MIC) + ordinal/focal."""
 from __future__ import annotations
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer
+
 
 def _repo_root():
     import os
@@ -482,7 +489,7 @@ def main() -> None:
     full = v2m.load_with_species(Path(args.csv_path))
     train_df, val_df, test_df = v2m.apply_seq_split(full, Path(args.split_root))
 
-    tok = GPT2TokenizerFast.from_pretrained(args.backbone, local_files_only=True)
+    tok = load_eos_tokenizer(args.backbone, local_files_only=True)
     tok.padding_side = "left"
     tok.pad_token = tok.eos_token
 

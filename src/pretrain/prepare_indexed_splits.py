@@ -4,6 +4,13 @@
 
 from __future__ import annotations
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import EOS_TEXT, normalize_eos_text
+
 import argparse
 import hashlib
 import json
@@ -11,7 +18,6 @@ from pathlib import Path
 
 import numpy as np
 
-EOS_TEXT = "<|endoftext|>"
 
 
 def _hash_to_unit_interval(s: str, seed: int) -> float:
@@ -30,7 +36,7 @@ def _assign_split(line: str, seed: int, val_ratio: float, test_ratio: float) -> 
 
 
 def _maybe_add_eos(s: str, ensure_eos: bool) -> str:
-    x = s.strip()
+    x = normalize_eos_text(s).strip()
     if not x:
         return ""
     if ensure_eos and (not x.endswith(EOS_TEXT)):

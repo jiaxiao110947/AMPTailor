@@ -2,6 +2,13 @@
 # -*- coding: utf-8 -*-
 """Prepare length-conditioned training corpus from raw peptide lines."""
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import EOS_TEXT, normalize_eos_text
+
 import argparse
 import json
 import re
@@ -9,18 +16,16 @@ from collections import Counter
 from pathlib import Path
 
 AA20 = set("ACDEFGHIKLMNPQRSTVWY")
-EOS_TEXT = "<|endoftext|>"
 LEN_PREFIX_RX = re.compile(r"^LEN([1-9][0-9]*):")
 
 
 def _clean_seq(raw: str) -> str:
-    s = raw.strip().upper().replace(" ", "")
+    s = normalize_eos_text(raw).strip().upper().replace(" ", "")
     # Length prefixes are conditioning metadata, not peptide residues.
     # Strip repeated prefixes too, so reprocessing cannot add LEN residues.
     while LEN_PREFIX_RX.match(s):
         s = LEN_PREFIX_RX.sub("", s, count=1)
-    if s.endswith(EOS_TEXT.upper()):
-        s = s[: -len(EOS_TEXT)]
+    s = s.split(EOS_TEXT, 1)[0]
     return "".join(c for c in s if c in AA20)
 
 
@@ -52,7 +57,7 @@ def main() -> None:
     with inp.open("r", encoding="utf-8") as fr, out.open("w", encoding="utf-8") as fw:
         for ln in fr:
             n_in += 1
-            raw = ln.strip()
+            raw = normalize_eos_text(ln).strip()
             if not raw:
                 continue
             if args.skip_existing_prefix and LEN_PREFIX_RX.match(raw.upper()):

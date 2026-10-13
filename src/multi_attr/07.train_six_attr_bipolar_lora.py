@@ -3,6 +3,13 @@
 """Train six-attr LoRA with bipolar GP/GN/FU prefixes. Original trainer is unchanged."""
 from __future__ import annotations
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer
+
 
 def _repo_root():
     import os
@@ -221,7 +228,7 @@ class ComboEvalEnglishDisc(T.ComboEvalCallback):
         models = {}
         toks = {}
         for name, d in HEADS.items():
-            tok = SCORE.GPT2TokenizerFast.from_pretrained(str(d / "tokenizer"), local_files_only=True)
+            tok = SCORE.load_eos_tokenizer(str(d / "tokenizer"), local_files_only=True)
             tok.padding_side = "left"
             tok.pad_token = tok.eos_token
             toks[name] = tok

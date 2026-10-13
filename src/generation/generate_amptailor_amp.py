@@ -1,5 +1,13 @@
 #!/usr/bin/env python3  # shebang
 # -*- coding: utf-8 -*-  # encoding
+
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer, EOS_TEXT
+
 import os  # os
 import math  # math
 import json  # json
@@ -13,7 +21,6 @@ import statistics  # statistics
 import torch  # torch
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast  # hf
 
-EOS_TEXT = "<|endoftext|>"  # eos text marker
 AA20 = "ACDEFGHIKLMNPQRSTVWY"  # aa20 letters
 AA20_SET = set(list(AA20))  # aa20 set
 
@@ -130,7 +137,7 @@ class AMPTailorGeneratorAAOnly:  # tri generator
         self.base = _load(base_dir).to(self.device).eval()  # base
         self.expert = _load(expert_dir).to(self.device).eval()  # expert
         self.anti = _load(anti_dir).to(self.device).eval()  # anti
-        self.tok = GPT2TokenizerFast.from_pretrained(tok_dir)  # tok
+        self.tok = load_eos_tokenizer(tok_dir)  # tok
         self.tok.padding_side = "left"  # left pad
         if self.tok.pad_token is None:  # pad none
             self.tok.pad_token = self.tok.eos_token  # pad=eos

@@ -3,6 +3,13 @@
 """LoRA discriminators on atomic SPxx tokenizer + one-AA-per-token peptide ids."""
 from __future__ import annotations
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer
+
 
 def _repo_root():
     import os
@@ -53,7 +60,7 @@ SP_TOKENS = ft.SP_TOKENS
 
 
 def build_resized_encoder(backbone: str, tok: GPT2TokenizerFast) -> GPT2Model:
-    base_tok = GPT2TokenizerFast.from_pretrained(backbone, local_files_only=True)
+    base_tok = load_eos_tokenizer(backbone, local_files_only=True)
     encoder = GPT2Model.from_pretrained(backbone, local_files_only=True)
     encoder.resize_token_embeddings(len(tok))
     with torch.no_grad():
@@ -392,7 +399,7 @@ def main() -> None:
     tok_dst = out_root / "tokenizer"
     if not (tok_dst / "tokenizer_config.json").exists():
         shutil.copytree(tok_src, tok_dst, dirs_exist_ok=True)
-    tok = GPT2TokenizerFast.from_pretrained(str(tok_dst), local_files_only=True)
+    tok = load_eos_tokenizer(str(tok_dst), local_files_only=True)
     tok.padding_side = "left"
     tok.pad_token = tok.eos_token
     for sp in SP_TOKENS:

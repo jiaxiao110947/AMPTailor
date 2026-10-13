@@ -8,6 +8,13 @@ load it by absolute path at runtime.
 
 from __future__ import annotations
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer, EOS_TEXT
+
 
 def _repo_root():
     import os
@@ -61,7 +68,6 @@ LENGTH_TIERS = [
 ]
 AA20_LIST = list("ACDEFGHIKLMNPQRSTVWY")
 AA20_SET = set(AA20_LIST)
-EOS_TEXT = "<|endoftext|>"
 GENERATION_SCHEME_HEADER = "five_attr_single_lora_prompt_fusion"
 CANON_RX = re.compile(r"^[ACDEFGHIKLMNPQRSTVWY]+$")
 FIXED_TASK_RX = re.compile(r"^(GP1|GN1|FU1|SF0|SF1)$")
@@ -358,7 +364,7 @@ class StopHead(nn.Module):
 
 
 def load_tokenizer(tokenizer_dir: str) -> GPT2TokenizerFast:
-    tok = GPT2TokenizerFast.from_pretrained(str(tokenizer_dir))
+    tok = load_eos_tokenizer(str(tokenizer_dir))
     if tok.eos_token is None:
         tok.eos_token = EOS_TEXT
     if tok.pad_token is None:

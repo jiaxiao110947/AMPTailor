@@ -2,6 +2,14 @@
 # -*- coding: utf-8 -*-  # encoding
 # AMP generation helpers: start-letter stats + FASTA generation.  # desc
 
+
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer, EOS_TEXT, normalize_eos_text
+
 import os  # os
 import re  # re
 import json  # json
@@ -17,7 +25,6 @@ from transformers import GPT2LMHeadModel  # model
 from transformers import GPT2TokenizerFast  # tokenizer
 
 AA20 = "ACDEFGHIKLMNPQRSTVWY"  # aa20
-EOS_TEXT = "<|endoftext|>"  # eos text
 
 DEFAULT_N_GEN = int(os.environ.get("AMP_N_GEN", "10000"))  # default n_generate from env (fallback 10000)
 
@@ -35,7 +42,7 @@ def drop_echoed_len_control(text: str) -> str:
 
 def extract_peptide_after_length_prompt(text: str, prompt: str) -> str:
     """Extract residues after the prompt and before the first EOS marker."""
-    body = str(text).strip()
+    body = normalize_eos_text(text).strip()
     p = str(prompt).strip()
     if p and body.upper().startswith(p.upper()):
         body = body[len(p) :]
@@ -43,7 +50,7 @@ def extract_peptide_after_length_prompt(text: str, prompt: str) -> str:
     return _clean_seq(drop_echoed_len_control(body))
 
 def ensure_tokenizer(tokenizer_dir: str) -> GPT2TokenizerFast:  # ensure tokenizer
-    tok = GPT2TokenizerFast.from_pretrained(tokenizer_dir)  # load
+    tok = load_eos_tokenizer(tokenizer_dir)  # load
     if tok.pad_token is None:  # pad missing
         tok.pad_token = tok.eos_token  # set pad=eos
     tok.padding_side = "left"  # left pad

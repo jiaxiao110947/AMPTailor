@@ -1,6 +1,13 @@
 #!/usr/bin/env python3  # shebang  # 
 # -*- coding: utf-8 -*-  # encoding  # 
 from __future__ import annotations  # defer annotation eval (SmallEvalSet forward refs)  # 
+
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer, EOS_TEXT, normalize_eos_text
 # Stop-v3 trainer: streaming dataset + unified wandb metrics + safe AMPEP/AMPsorter callback.  # desc  # 
 import os  # os  # 
 import json  # json  # 
@@ -53,7 +60,6 @@ try:  # ampsorter-only eval callback  #
 except Exception:  # if missing  # 
     AmpSorterOnlyEvalCallback = None  # fallback  # 
 
-EOS_TEXT = "<|endoftext|>"  # eos token text  # 
 UNLIMITED_MAX_STEPS = 999_999_999  # practical cap when max_steps<=0  # 
 
 # -----------------------------  # section  # 
@@ -65,7 +71,7 @@ def _hash_to_unit_interval(s: str, seed: int) -> float:  # stable hash -> [0,1) 
     return (v / float(1 << 48))  # scale  # 
 
 def _maybe_add_eos(s: str, ensure_eos: bool) -> str:  # append eos  # 
-    x = s.strip()  # strip  # 
+    x = normalize_eos_text(s).strip()  # strip  #
     if not x:  # empty  # 
         return ""  # empty  # 
     if ensure_eos and (not x.endswith(EOS_TEXT)):  # need eos  # 
@@ -650,7 +656,7 @@ def main():  # main  #
         os.environ["WANDB_RUN_NAME"] = str(a.wandb_run_name)  # name  # 
         os.environ["WANDB_MODE"] = str(a.wandb_mode)  # mode  # 
 
-    tok = GPT2TokenizerFast.from_pretrained(str(a.tokenizer_dir))  # tok  # 
+    tok = load_eos_tokenizer(str(a.tokenizer_dir))  # tok  #
     if tok.pad_token is None:  # pad  # 
         tok.pad_token = tok.eos_token  # pad=eos  # 
     tok.padding_side = "left"  # left pad  # 

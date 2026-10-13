@@ -16,7 +16,7 @@ spec.loader.exec_module(prep)
 class LengthPrefixTests(unittest.TestCase):
     def test_prefix_is_not_part_of_peptide(self):
         for raw in ["LEN4:ACDE", "len4:acde<|endoftext|>",
-                    " LEN4: A C D E ", "LEN7:LEN4:ACDE"]:
+                    " LEN4: A C D E ", "LEN7:LEN4:ACDE", "LEN4:ACDEEOS"]:
             with self.subTest(raw=raw):
                 self.assertEqual(prep._clean_seq(raw), "ACDE")
 
@@ -34,7 +34,7 @@ class LengthPrefixTests(unittest.TestCase):
                 subprocess.run([sys.executable, str(SCRIPT), "--input", str(inp),
                                 "--output", str(out), "--ensure_eos"],
                                check=True, capture_output=True, text=True)
-            self.assertEqual(output.read_text(), "LEN4:ACDE<|endoftext|>\n" * 3)
+            self.assertEqual(output.read_text(), "LEN4:ACDEEOS\n" * 3)
             self.assertEqual(output.read_bytes(), repeated.read_bytes())
             stats = json.loads(output.with_suffix(".stats.json").read_text())
             self.assertEqual(stats["length_histogram"], {"4": 3})

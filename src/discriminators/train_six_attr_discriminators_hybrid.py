@@ -3,6 +3,13 @@
 """Hybrid discriminators: AA-V2 for GP/GN/FU/SF (row-level, AUROC ckpt); atomic SPxx for MIC."""
 from __future__ import annotations
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer
+
 
 def _repo_root():
     import os
@@ -60,7 +67,7 @@ class_weight = v2mod.class_weight
 
 
 def build_mic_encoder(backbone: str, tok: GPT2TokenizerFast) -> GPT2Model:
-    base_tok = GPT2TokenizerFast.from_pretrained(backbone, local_files_only=True)
+    base_tok = load_eos_tokenizer(backbone, local_files_only=True)
     encoder = GPT2Model.from_pretrained(backbone, local_files_only=True)
     encoder.resize_token_embeddings(len(tok))
     with torch.no_grad():
@@ -174,7 +181,7 @@ def train_binary(task, train_df, val_df, test_df, backbone, device, args, wandb_
     n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"[{task}] AA-V2-style row-level LoRA r={args.lora_r} trainable={n_train} n={len(train_df)}", flush=True)
 
-    tok = GPT2TokenizerFast.from_pretrained(backbone, local_files_only=True)
+    tok = load_eos_tokenizer(backbone, local_files_only=True)
     tok.padding_side = "left"
     tok.pad_token = tok.eos_token
     pad_id = int(tok.pad_token_id)
@@ -486,7 +493,7 @@ def main():
     tok_dst = out_root / "tokenizer"
     if not (tok_dst / "tokenizer_config.json").exists():
         shutil.copytree(tok_src, tok_dst, dirs_exist_ok=True)
-    mic_tok = GPT2TokenizerFast.from_pretrained(str(tok_dst), local_files_only=True)
+    mic_tok = load_eos_tokenizer(str(tok_dst), local_files_only=True)
     mic_tok.padding_side = "left"
     mic_tok.pad_token = mic_tok.eos_token
     for sp in SP_TOKENS:

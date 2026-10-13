@@ -8,6 +8,13 @@ length base model, not the expert.
 """
 from __future__ import annotations
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer
+
 import argparse
 import importlib.util
 import json
@@ -163,7 +170,7 @@ def load_binary(backbone: str, ckpt: str, device):
 def load_mic(backbone: str, tok_dir: str, ckpt: str, device):
     disc_dir = Path(__file__).resolve().parents[1] / "discriminators"
     hybrid = _load("disc_hybrid_score", disc_dir / "train_six_attr_discriminators_hybrid.py")
-    tok = GPT2TokenizerFast.from_pretrained(tok_dir, local_files_only=True)
+    tok = load_eos_tokenizer(tok_dir, local_files_only=True)
     tok.padding_side = "left"
     tok.pad_token = tok.eos_token
     encoder = hybrid.build_mic_encoder(backbone, tok)
@@ -272,7 +279,7 @@ def main() -> None:
     probs: Dict[str, np.ndarray] = {}
     for name, folder in HEADS.items():
         head = disc_root / folder
-        tok = GPT2TokenizerFast.from_pretrained(str(head / "tokenizer"), local_files_only=True)
+        tok = load_eos_tokenizer(str(head / "tokenizer"), local_files_only=True)
         tok.padding_side = "left"
         tok.pad_token = tok.eos_token
         model = load_binary(str(head / "backbone"), str(head / "weights" / "best.pt"), device)

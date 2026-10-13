@@ -3,6 +3,13 @@
 """Stronger per-attribute discriminators: LoRA on full encoder, MIC = seq+species."""
 from __future__ import annotations
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer
+
 
 def _repo_root():
     import os
@@ -423,7 +430,7 @@ def main() -> None:
     val_df.to_csv(out_root / "split_val.csv", index=False)
     test_df.to_csv(out_root / "split_test.csv", index=False)
 
-    tok = GPT2TokenizerFast.from_pretrained(args.backbone, local_files_only=True)
+    tok = load_eos_tokenizer(args.backbone, local_files_only=True)
     tok.padding_side = "left"
     tok.pad_token = tok.eos_token
 

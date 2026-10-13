@@ -2,6 +2,9 @@
 import re
 import unittest
 from test_generation_stopping import load_functions
+from test_guided_generation import load
+
+COMPAT = load("extraction_eos_compat", "src/eos_compat.py")
 
 
 class LengthPromptExtractionTests(unittest.TestCase):
@@ -10,7 +13,7 @@ class LengthPromptExtractionTests(unittest.TestCase):
                                  ['_clean_seq', 'drop_echoed_len_control',
                                   'extract_peptide_after_length_prompt'],
                                  {'re': re, 'AA20': 'ACDEFGHIKLMNPQRSTVWY',
-                                  'EOS_TEXT': '<|endoftext|>'})
+                                  'EOS_TEXT': 'EOS', 'normalize_eos_text': COMPAT.normalize_eos_text})
 
     def test_real_len_residues_survive(self):
         extract = self.ns['extract_peptide_after_length_prompt']
@@ -27,6 +30,7 @@ class LengthPromptExtractionTests(unittest.TestCase):
         extract = self.ns['extract_peptide_after_length_prompt']
         self.assertEqual(extract('LEN4:ACDE<|endoftext|>WYWY', 'LEN4:'), 'ACDE')
         self.assertEqual(extract('LEN4:<|endoftext|>ACDE', 'LEN4:'), '')
+        self.assertEqual(extract('LEN4:ACDEEOSWYWY', 'LEN4:'), 'ACDE')
 
 
 if __name__ == '__main__':

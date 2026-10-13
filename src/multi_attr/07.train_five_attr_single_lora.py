@@ -2,6 +2,14 @@
 # -*- coding: utf-8 -*-
 
 
+
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer
+
 def _repo_root():
     import os
     from pathlib import Path
@@ -1627,7 +1635,7 @@ def main() -> None:
         os.environ["WANDB_GROUP"] = str(a.wandb_group)
         os.environ["WANDB_RUN_NAME"] = str(a.wandb_run_name) or outdir.name
 
-    tok = GPT2TokenizerFast.from_pretrained(str(a.tokenizer_dir))
+    tok = load_eos_tokenizer(str(a.tokenizer_dir))
     if tok.eos_token is None:
         tok.eos_token = EOS_TEXT
     if tok.pad_token is None:

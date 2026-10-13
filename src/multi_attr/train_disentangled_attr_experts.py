@@ -7,6 +7,13 @@ Does not modify the original shared-LoRA bipolar trainer.
 """
 from __future__ import annotations
 
+import sys as _eos_sys
+from pathlib import Path as _EosPath
+_eos_src = str(_EosPath(__file__).resolve().parents[1])
+if _eos_src not in _eos_sys.path:
+    _eos_sys.path.insert(0, _eos_src)
+from eos_compat import load_eos_tokenizer, EOS_TEXT
+
 
 def _repo_root():
     import os
@@ -42,7 +49,6 @@ from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 from torch.optim import AdamW
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast, get_cosine_schedule_with_warmup
 
-EOS_TEXT = "<|endoftext|>"
 LEN_RX = re.compile(r"^LEN(\d+)$")
 ADAPTERS = ["gp", "gn", "fu", "sf", "len"]
 TASK_TO_ADAPTER = {
@@ -264,7 +270,7 @@ def load_multi_adapters(adapter_root: str, tokenizer_dir: str, device_str: str =
     root = Path(adapter_root)
     index = json.loads((root / "adapter_index.json").read_text())
     names = list(index["adapters"])
-    tok = GPT2TokenizerFast.from_pretrained(tokenizer_dir)
+    tok = load_eos_tokenizer(tokenizer_dir)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     tok.padding_side = "left"
@@ -330,7 +336,7 @@ def train(args) -> Path:
     status(status_path, f"train pools {sizes}")
     probs = {k: sample_weights(v) for k, v in pools.items() if v}
 
-    tok = GPT2TokenizerFast.from_pretrained(args.tokenizer_dir)
+    tok = load_eos_tokenizer(args.tokenizer_dir)
     if tok.eos_token is None:
         tok.eos_token = EOS_TEXT
     if tok.pad_token is None:

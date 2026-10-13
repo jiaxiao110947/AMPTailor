@@ -57,8 +57,10 @@ All four language models use a **12-layer decoder-only Transformer** architectur
 Training sequences for `PeptidePrior`, `AMPGuide`, and `CounterAMPGuide` include an explicit length prefix, for example:
 
 ```text
-LEN18:WVRLGRYLLRRLKTPFTR<|endoftext|>
+LEN18:WVRLGRYLLRRLKTPFTREOS
 ```
+
+`EOS` is the actual special end token. Tokenizer loading preserves the original end-token ID, so retained model weights remain compatible. Legacy corpus markers are normalized to `EOS` before training.
 
 Here, `LEN18:` requests a length of 18; generation uses a `LEN{n}:` prompt. `BasePLM` represents the general protein pretraining stage and should be distinguished from subsequent length-conditioned adaptation.
 
