@@ -43,16 +43,18 @@ These attributes can be combined according to the generation method. Generation 
 
 ### 1.2 Model progression
 
+BasePLM was pretrained on the reviewed UniProtKB/Swiss-Prot protein dataset. PeptidePrior was initialized from the retained BasePLM checkpoint and further pretrained on length-conditioned short peptides. Two independent copies of the retained PeptidePrior checkpoint were then fine-tuned on the curated AMP and annotation-filtered non-AMP datasets to obtain AMPGuide and CounterAMPGuide, respectively.
+
 All four language models use a **12-layer decoder-only Transformer** architecture with approximately **124M** parameters:
 
 | Model | Training stage | Main role |
 | --- | --- | --- |
-| `BasePLM` | Pretraining on Swiss-Prot protein sequences | General protein sequence prior |
+| `BasePLM` | Pretraining on reviewed UniProtKB/Swiss-Prot protein sequences | General protein sequence prior |
 | `PeptidePrior` | Continued pretraining on short peptides of 5–60 aa | Short-peptide generation and length conditioning |
-| `AMPGuide` | AMP domain adaptation from `PeptidePrior` | Positive AMP generation guidance |
-| `CountAMPGuide` | Non-AMP domain adaptation from `PeptidePrior` | Contrastive/reverse generation guidance |
+| `AMPGuide` | Fine-tuning an independent copy of retained `PeptidePrior` on curated AMP sequences | Positive AMP generation guidance |
+| `CounterAMPGuide` | Non-Fine-tuning an independent copy of retained `PeptidePrior` on curated AMP sequences | Contrastive/reverse generation guidance |
 
-Training sequences for `PeptidePrior`, `AMPGuide`, and `CountAMPGuide` include an explicit length prefix, for example:
+Training sequences for `PeptidePrior`, `AMPGuide`, and `CounterAMPGuide` include an explicit length prefix, for example:
 
 ```text
 LEN18:WVRLGRYLLRRLKTPFTR<|endoftext|>
@@ -60,7 +62,7 @@ LEN18:WVRLGRYLLRRLKTPFTR<|endoftext|>
 
 Here, `LEN18:` requests a length of 18; generation uses a `LEN{n}:` prompt. `BasePLM` represents the general protein pretraining stage and should be distinguished from subsequent length-conditioned adaptation.
 
-**Main released checkpoints (see `docs/CHECKPOINTS.md`):** `PeptidePrior` step 84000, `AMPGuide` step 1088, and `CountAMPGuide` step 12000. Six-attribute branches and discriminators are described below.
+**Main released checkpoints (see `docs/CHECKPOINTS.md`):** `PeptidePrior` step 84000, `AMPGuide` step 1088, and `CounterAMPGuide` step 12000. Six-attribute branches and discriminators are described below.
 
 ---
 
@@ -74,7 +76,7 @@ AMPTailor/                         # Hugging Face: 53386ljx/AMPTailor
 │   ├── BasePLM/
 │   ├── PeptidePrior/
 │   ├── AMPGuide/
-│   ├── CountAMPGuide/
+│   ├── CounterAMPGuide/
 │   ├── six_attr_bipolar/
 │   ├── six_attr_strict_combo/
 │   ├── six_attr_disentangle/
@@ -129,7 +131,7 @@ AMPTailor provides four complementary generation entry points. Each organizes co
 Prediction signals from the short-peptide prior and the AMP/non-AMP guidance models are combined during generation. Conceptually:
 
 $$
-\mathrm{Guidance}=\mathrm{PeptidePrior}+\alpha\,(\mathrm{AMPGuide}-\mathrm{CountAMPGuide}).
+\mathrm{Guidance}=\mathrm{PeptidePrior}+\alpha\,(\mathrm{AMPGuide}-\mathrm{CounterAMPGuide}).
 $$
 
 This is a **guided combination of generation scores/logits**, not a direct sum of three sets of model weights. The released configuration uses `alpha=2.0`, `alpha_eos=0.0`, and the length prompt `LEN{n}:`.
@@ -269,7 +271,7 @@ Retraining outputs are written to `outputs/` without intentionally overwriting r
 ```bash
 bash scripts/train_PeptidePrior.sh
 bash scripts/train_AMPGuide.sh
-bash scripts/train_CountAMPGuide.sh
+bash scripts/train_CounterAMPGuide.sh
 bash scripts/train_six_attr_bipolar.sh
 bash scripts/train_six_attr_strict_combo.sh
 bash scripts/train_disentangled_attr_experts.sh
@@ -306,7 +308,7 @@ AMPTailor/
 │       └── amptailor_pipeline.png
 ├── scripts/                  # Training, generation, and evaluation entry points
 ├── src/
-│   ├── pretrain/             # BasePLM / PeptidePrior / AMPGuide / CountAMPGuide
+│   ├── pretrain/             # BasePLM / PeptidePrior / AMPGuide / CounterAMPGuide
 │   ├── multi_attr/           # Six-attribute adaptation, fine-tuning, and evaluation protocols
 │   ├── discriminators/       # Discriminator training and historical configurations
 │   └── generation/           # Guided decoding, conditional generation, and scoring

@@ -7,16 +7,16 @@ In `adapter_config.json`, `base_model_name_or_path` is set to `models/AMPGuide`.
 ## Generation models
 
 - `models/BasePLM`
-  - BasePLM in the manuscript: a 12-layer decoder-only Transformer with approximately 124M parameters, pretrained on Swiss-Prot. PeptidePrior continues training from this model.
+  - BasePLM in the manuscript: a 12-layer decoder-only Transformer with approximately 124M parameters, pretrained on the reviewed UniProtKB/Swiss-Prot protein dataset. PeptidePrior is initialized from the retained BasePLM checkpoint.
   - Only `model.safetensors` is retained; the duplicate `pytorch_model.bin` is excluded.
 - `models/PeptidePrior`
   - PeptidePrior in the manuscript: continued pretraining on short peptides. The original length-MAE-selected checkpoint under `length_base_model1` corresponds to `checkpoint-84000`.
   - Selected by length MAE. See `FROZEN_README.txt` in the model directory for details.
 - `models/AMPGuide`
-  - AMPGuide in the manuscript: adaptation of PeptidePrior to AMP sequences. Original directory: `length_expert_model1/best_model`, corresponding to `checkpoint-1088`.
+  - AMPGuide in the manuscript: fine-tuning of an independent copy of the retained PeptidePrior checkpoint on curated AMP sequences. Original directory: `length_expert_model1/best_model`, corresponding to `checkpoint-1088`.
   - Selected by evaluation loss. Training ended at step 1472; the release uses step 1088, which had the best evaluation loss.
-- `models/CountAMPGuide`
-  - CountAMPGuide in the manuscript: adaptation of PeptidePrior to non-AMP short peptides. Original directory: `length_anti_model1/best_model`, corresponding to `checkpoint-12000`.
+- `models/CounterAMPGuide`
+  - CounterAMPGuide in the manuscript: fine-tuning of an independent copy of the retained PeptidePrior checkpoint on annotation-filtered non-AMP sequences. Original directory: `length_anti_model1/best_model`, corresponding to `checkpoint-12000`.
 - `models/six_attr_bipolar`
   - Original directory: `length_expert_model1_six_attr_bipolar_notraineval_20260913_114605/checkpoint-5000`.
   - Identical to the adapter in `..._offlineeval_20260915_093322/checkpoint-5000`; only one copy is retained.
@@ -71,11 +71,11 @@ Each head directory contains:
 
 - `data/corpus/uniprot_short_peptides.txt`: PeptidePrior, 3,219,459 lines
 - `data/corpus/AMP.txt`: AMPGuide, 16,062 lines
-- `data/corpus/nonAMP.txt`: CountAMPGuide, 2,821,399 lines
+- `data/corpus/nonAMP.txt`: CounterAMPGuide, 2,821,399 lines
 - `data/corpus/sequence_species_mic_binned_for_six_attr.csv`: Six-attribute experts and discriminators
 - `data/splits/split_{train,val,test}.csv`: Sequence-based splits used by hybrid training, seed=42
 
-Length-conditioned text and indexed splits are written to `outputs/prepared/` by `scripts/train_PeptidePrior.sh`, `scripts/train_AMPGuide.sh`, and `scripts/train_CountAMPGuide.sh`, using seed=42 and validation/test ratios of 0.001 each. These files can be regenerated and are not included in the repository.
+Length-conditioned text and indexed splits are written to `outputs/prepared/` by `scripts/train_PeptidePrior.sh`, `scripts/train_AMPGuide.sh`, and `scripts/train_CounterAMPGuide.sh`, using seed=42 and validation/test ratios of 0.001 each. These files can be regenerated and are not included in the repository.
 
 ## Experiments excluded from the release
 

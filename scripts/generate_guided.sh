@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Guided decoding: PeptidePrior + alpha * (AMPGuide - CountAMPGuide).
+# Guided decoding: PeptidePrior + alpha * (AMPGuide - CounterAMPGuide).
 # July 2026 production setting used alpha=2.0 and alpha_eos=0.0.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,7 +12,7 @@ mkdir -p "${OUT}"
 "${PY}" src/generation/generate_amptailor_length_amp.py \
   --base_model_dir "${PROJECT_ROOT}/models/PeptidePrior" \
   --expert_model_dir "${PROJECT_ROOT}/models/AMPGuide" \
-  --anti_model_dir "${PROJECT_ROOT}/models/CountAMPGuide" \
+  --anti_model_dir "${PROJECT_ROOT}/models/CounterAMPGuide" \
   --tokenizer_dir "${PROJECT_ROOT}/models/PeptidePrior" \
   --out_dir "${OUT}" \
   --header_prefix "amptailor" \

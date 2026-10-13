@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CountAMPGuide. Init: PeptidePrior. Corpus: nonAMP.txt, length 2-60.
+# CounterAMPGuide. Init: PeptidePrior. Corpus: nonAMP.txt, length 2-60.
 # Published best_model is step 12000.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,8 +12,8 @@ PY="${PYTHON:-python}"
 RAW="${PROJECT_ROOT}/data/corpus/nonAMP.txt"
 DATA="${PROJECT_ROOT}/outputs/prepared/nonamp_length_train.txt"
 STATS="${DATA}.stats.json"
-INDEX="${PROJECT_ROOT}/outputs/prepared/CountAMPGuide_indexed"
-OUT="${OUT_DIR:-${PROJECT_ROOT}/outputs/CountAMPGuide}"
+INDEX="${PROJECT_ROOT}/outputs/prepared/CounterAMPGuide_indexed"
+OUT="${OUT_DIR:-${PROJECT_ROOT}/outputs/CounterAMPGuide}"
 mkdir -p "$(dirname "${DATA}")" "${OUT}"
 
 if [[ ! -f "${DATA}" ]]; then
