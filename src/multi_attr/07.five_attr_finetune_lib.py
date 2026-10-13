@@ -49,6 +49,10 @@ def apply_finetune_mode(model: GPT2LMHeadModel, mode: str, freeze_bottom_layers:
     elif mode == "bitfit":
         for name, p in model.named_parameters():
             p.requires_grad = "bias" in name or name.startswith("lm_head")
+        # GPT-2 deduplicates tied parameters in named_parameters(): lm_head.weight
+        # may appear only as transformer.wte.weight. Enable the actual head directly.
+        for p in model.get_output_embeddings().parameters():
+            p.requires_grad = True
     else:
         raise ValueError(f"unknown finetune_mode: {mode}")
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)

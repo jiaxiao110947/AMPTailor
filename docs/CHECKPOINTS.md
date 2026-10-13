@@ -39,6 +39,8 @@ All strategies use the same six-attribute data and start from `models/AMPGuide`,
 | `lora_r64` | LoRA r=64, alpha=128 | 1500 | 1.5e-5 | 78 × 3 |
 | `bitfit` | Train only biases and lm_head | 5000 | 2e-4 | 90 × 2 |
 
+For GPT-2 with tied input/output embeddings, BitFit explicitly enables the output head weights. These weights are shared with the input embeddings, so both views of the same parameter are updated.
+
 Original directories:
 
 - `lora_r16`: `length_expert_model1_six_attr_lora_notraineval_20260609_101447/checkpoint-2500`

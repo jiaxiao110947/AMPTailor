@@ -370,15 +370,15 @@ def load_tokenizer(tokenizer_dir: str) -> GPT2TokenizerFast:
 def _build_aa_char_maps(tok: GPT2TokenizerFast) -> Tuple[Dict[int, str], torch.Tensor]:
     id_to_aa: Dict[int, str] = {}
     eos_id = int(tok.eos_token_id)
-    for i in range(int(getattr(tok, "vocab_size", 0))):
+    # len(tokenizer) includes added tokens; vocab_size covers only the base vocabulary.
+    for i in range(len(tok)):
         txt = tok.decode([i], clean_up_tokenization_spaces=False)
         t = "".join(ch for ch in str(txt).upper() if not ch.isspace())
         if len(t) == 1 and t in AA20_SET and i not in id_to_aa:
             id_to_aa[int(i)] = t
-            if len(id_to_aa) == len(AA20_LIST):
-                break
-    if len(id_to_aa) != len(AA20_LIST):
-        miss = [x for x in AA20_LIST if x not in set(id_to_aa.values())]
+    covered = set(id_to_aa.values())
+    miss = [x for x in AA20_LIST if x not in covered]
+    if miss:
         raise RuntimeError(f"tokenizer missing single-AA tokens: {miss}")
     allowed = sorted(set(list(id_to_aa.keys()) + [eos_id]))
     return id_to_aa, torch.tensor(allowed, dtype=torch.long)
