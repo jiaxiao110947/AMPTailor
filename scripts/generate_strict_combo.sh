@@ -11,4 +11,5 @@ mkdir -p "${PROJECT_ROOT}/outputs/generate"
   --bits "${BITS:-1110}" \
   --length "${LENGTH:-18}" \
   --n "${N:-8}" \
+  --max_new_tokens "${MAX_NEW_TOKENS:-256}" \
   --seed "${SEED:-42}"

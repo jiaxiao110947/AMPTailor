@@ -927,7 +927,7 @@ class ComboEvalCallback(TrainerCallback):
         attr_weights: Sequence[float],
         timeout: int,
         default_length: int,
-        enforce_exact_length: bool = True,
+        enforce_exact_length: bool = False,
         regular6_only: bool = False,
         run_enforce1: bool = False,
         lenonly_enable: bool = True,
@@ -1200,7 +1200,7 @@ class ComboEvalCallback(TrainerCallback):
                     step,
                     args,
                     seed_offset=5000,
-                    enforce_exact_length=True,
+                    enforce_exact_length=False,
                     n_per_combo=self.n_per_combo,
                     prompt_mode=self.prompt_mode,
                 )

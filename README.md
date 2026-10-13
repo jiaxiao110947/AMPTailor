@@ -124,6 +124,8 @@ This command creates or completes `models/` and `data/` in the current directory
 
 ## 3. Generation
 
+Target length is supplied as a conditioning prompt. Generation stops at the first EOS token predicted for each sequence; outputs are not padded or truncated to the requested length. `max_new_tokens` is only a safety cap. Length errors should be measured on the generated sequences.
+
 AMPTailor provides four complementary generation entry points. Each organizes conditions differently to support reproduction of length-control, contrastive-guidance, and six-attribute composition experiments.
 
 ### 3.1 Contrastive guided decoding

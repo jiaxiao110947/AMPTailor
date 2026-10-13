@@ -133,7 +133,7 @@ def main() -> None:
             seed=int(args.seed),
             max_attempts_multiplier=20,
             attr_weights=[1, 1, 1, 1, 1],
-            enforce_exact_length=True,
+            enforce_exact_length=False,
             default_length=lengths[0],
             prompt_mode="fused",
         )

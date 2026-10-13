@@ -133,7 +133,7 @@ def main() -> None:
     p.add_argument("--max_seq_len", type=int, default=256)
     p.add_argument("--min_new_tokens", type=int, default=1)
     p.add_argument("--max_new_tokens", type=int, default=256)
-    p.add_argument("--enforce_exact_length", type=int, default=1, help="1=严格生成指定长度")
+    p.add_argument("--enforce_exact_length", type=int, choices=[0], default=0, help="1=严格生成指定长度")
     p.add_argument("--temperature", type=float, default=1.0)
     p.add_argument("--top_p", type=float, default=0.95)
     p.add_argument("--top_k", type=int, default=0)

@@ -551,6 +551,8 @@ def generate_sequences_for_combos(
     default_length: int = 24,
     prompt_mode: str = "fused",
 ) -> Any:
+    if enforce_exact_length:
+        raise ValueError("Forced length is no longer supported; use EOS stopping with enforce_exact_length=False")
     combos_in = [normalize_condition(str(c), default_length=default_length) for c in combos]
     combos_in = [c for c in combos_in if c.split(":", 1)[0] not in FORBIDDEN_ATTR_BITS]
     if not combos_in:
@@ -582,7 +584,7 @@ def generate_sequences_for_combos(
     with open(out_fasta, "w", encoding="utf-8") as w:
         for combo in combo_order:
             bits, target_len = parse_condition(combo, default_length=default_length)
-            gen_limit = int(target_len) if bool(enforce_exact_length) else int(max_new_tokens)
+            gen_limit = int(max_new_tokens)
             while per_combo_written[combo] < int(n_per_combo) and per_combo_attempts[combo] < per_combo_attempt_limit:
                 combo_attempt_idx = int(per_combo_attempts[combo])
                 torch.manual_seed(_combo_attempt_seed(int(seed), combo, combo_attempt_idx))
@@ -604,18 +606,14 @@ def generate_sequences_for_combos(
                     logits = logits / max(1e-6, float(temperature))
                     logits = _apply_repetition_penalty(logits, gen_ids, float(repetition_penalty))
                     logits = _apply_no_repeat_ngram(logits, gen_ids, int(no_repeat_ngram_size))
-                    if bool(enforce_exact_length) and step_idx + 1 < int(target_len):
-                        logits[:, eos_id] = -float("inf")
                     if aa_allowed_ids is not None:
                         masked = torch.full_like(logits, -float("inf"))
                         masked[:, aa_allowed_ids] = logits[:, aa_allowed_ids]
                         logits = masked
                     logits = _top_k_top_p_filtering(logits, top_k=int(top_k), top_p=float(top_p))
                     nxt = _sample_next(logits, do_sample=bool(do_sample))
-                    if bool(enforce_exact_length) and step_idx + 1 == int(target_len) and int(nxt.item()) == eos_id:
-                        break
                     gen_ids = torch.cat([gen_ids, nxt], dim=1)
-                    if (not bool(enforce_exact_length)) and int(nxt.item()) == eos_id and (step_idx + 1) >= int(min_new_tokens):
+                    if int(nxt.item()) == eos_id:
                         stop = True
                         break
                 if (not bool(enforce_exact_length)) and (not stop) and gen_ids.numel() < int(min_new_tokens):
@@ -631,9 +629,6 @@ def generate_sequences_for_combos(
                     continue
                 if len(seq) < int(min_seq_len) or len(seq) > int(max_seq_len):
                     reject_len_out_of_range += 1
-                    continue
-                if bool(enforce_exact_length) and len(seq) != int(target_len):
-                    reject_len_mismatch += 1
                     continue
                 gp, gn, fu, sf = condition_to_targets(combo)
                 gp_txt = "X" if gp is None else str(gp)
@@ -707,6 +702,8 @@ def _decode_sequence_once(
     attr_weights: Optional[Sequence[float]],
     default_length: int,
 ) -> Tuple[str, str]:
+    if enforce_exact_length:
+        raise ValueError("Forced length is no longer supported; use EOS stopping with enforce_exact_length=False")
     eos_id = int(tok.eos_token_id)
     id_to_aa: Dict[int, str] = {}
     aa_allowed_ids = None
@@ -730,19 +727,14 @@ def _decode_sequence_once(
         logits = logits / max(1e-6, float(temperature))
         logits = _apply_repetition_penalty(logits, gen_ids, float(repetition_penalty))
         logits = _apply_no_repeat_ngram(logits, gen_ids, int(no_repeat_ngram_size))
-        if bool(enforce_exact_length) and step_idx + 1 < int(target_len):
-            logits[:, eos_id] = -float("inf")
         if aa_allowed_ids is not None:
             masked = torch.full_like(logits, -float("inf"))
             masked[:, aa_allowed_ids] = logits[:, aa_allowed_ids]
             logits = masked
         logits = _top_k_top_p_filtering(logits, top_k=int(top_k), top_p=float(top_p))
         nxt = _sample_next(logits, do_sample=True)
-        if bool(enforce_exact_length) and step_idx + 1 == int(target_len) and int(nxt.item()) == eos_id:
-            stopped = True
-            break
         gen_ids = torch.cat([gen_ids, nxt], dim=1)
-        if (not bool(enforce_exact_length)) and int(nxt.item()) == eos_id and (step_idx + 1) >= int(min_new_tokens):
+        if int(nxt.item()) == eos_id:
             stopped = True
             break
 
@@ -845,10 +837,10 @@ def generate_length_then_content_for_combos(
                     tok,
                     device,
                     combo,
-                    prompt_mode="content_only",
+                    prompt_mode="fused",
                     target_len=int(target_len),
-                    step_limit=int(target_len),
-                    enforce_exact_length=True,
+                    step_limit=int(max_new_tokens),
+                    enforce_exact_length=False,
                     min_new_tokens=int(min_new_tokens),
                     temperature=float(temperature),
                     top_p=float(top_p),
@@ -861,9 +853,6 @@ def generate_length_then_content_for_combos(
                 )
                 if CANON_RX.fullmatch(seq or "") is None:
                     reject_phase2_invalid += 1
-                    continue
-                if len(seq) != int(target_len):
-                    reject_phase2_len += 1
                     continue
                 if len(seq) < int(min_seq_len) or len(seq) > int(max_seq_len):
                     reject_len_out_of_range += 1

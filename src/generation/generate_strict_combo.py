@@ -38,14 +38,18 @@ def _repo_root() -> Path:
 
 
 @torch.no_grad()
-def generate_exact(model, tok, device, prompt: str, target_len: int, n: int, *, temperature, top_p, repetition_penalty, lib, use_bf16):
+def generate_until_eos(model, tok, device, prompt: str, target_len: int, n: int, *, temperature, top_p, repetition_penalty, lib, use_bf16, max_new_tokens=256):
     token_ids = tok(prompt, add_special_tokens=False)["input_ids"]
     batch = int(n)
     prefix = torch.tensor(token_ids, dtype=torch.long, device=device).unsqueeze(0).expand(batch, -1)
     generated = torch.empty((batch, 0), dtype=torch.long, device=device)
     id_to_aa, aa_ids = lib._build_aa_char_maps(tok)
     aa_ids = aa_ids.to(device)
-    for _ in range(int(target_len)):
+    if int(max_new_tokens) <= 0 or batch <= 0:
+        raise ValueError("max_new_tokens and n must be positive")
+    eos_id = int(tok.eos_token_id)
+    finished = torch.zeros(batch, dtype=torch.bool, device=device)
+    for _ in range(int(max_new_tokens)):
         inp = torch.cat([prefix, generated], dim=1) if generated.numel() else prefix
         if use_bf16 and device.type == "cuda":
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
@@ -62,11 +66,21 @@ def generate_exact(model, tok, device, prompt: str, target_len: int, n: int, *, 
         masked = torch.full_like(logits, -float("inf"))
         masked[:, aa_ids] = logits[:, aa_ids]
         logits = lib._top_k_top_p_filtering(masked, top_k=0, top_p=float(top_p))
+        logits[finished] = -float("inf")
+        logits[finished, eos_id] = 0.0
         nxt = torch.multinomial(torch.softmax(logits, dim=-1), num_samples=1)
+        finished |= nxt.squeeze(-1).eq(eos_id)
         generated = torch.cat([generated, nxt], dim=1)
+        if bool(finished.all()):
+            break
+    if not bool(finished.all()):
+        print(f"[WARN] {int((~finished).sum().item())} sequences reached max_new_tokens without EOS", flush=True)
     seqs = []
     for i in range(batch):
-        seqs.append("".join(id_to_aa[int(x)] for x in generated[i].tolist() if int(x) in id_to_aa))
+        ids = generated[i].tolist()
+        if eos_id in ids:
+            ids = ids[:ids.index(eos_id)]
+        seqs.append("".join(id_to_aa[int(x)] for x in ids if int(x) in id_to_aa))
     return seqs
 
 
@@ -78,6 +92,7 @@ def main() -> None:
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top_p", type=float, default=0.95)
     parser.add_argument("--repetition_penalty", type=float, default=1.05)
+    parser.add_argument("--max_new_tokens", type=int, default=256, help="Safety cap; target length is controlled by the prompt and EOS")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--bf16", action="store_true")
     parser.add_argument("--adapter", default="")
@@ -101,7 +116,7 @@ def main() -> None:
     torch.manual_seed(int(args.seed))
     device_name = "cuda" if torch.cuda.is_available() else "cpu"
     model, tok, device = lib.load_single_lora_model(adapter, tokenizer, device_name)
-    seqs = generate_exact(
+    seqs = generate_until_eos(
         model,
         tok,
         device,
@@ -113,6 +128,7 @@ def main() -> None:
         repetition_penalty=float(args.repetition_penalty),
         lib=lib,
         use_bf16=bool(args.bf16),
+        max_new_tokens=int(args.max_new_tokens),
     )
     with out_fasta.open("w", encoding="utf-8") as handle:
         for i, seq in enumerate(seqs):

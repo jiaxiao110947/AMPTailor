@@ -20,7 +20,7 @@ mkdir -p "${OUT}"
   --use_regular6 \
   --lengths "${LENGTHS:-18}" \
   --n_per_combo "${N_PER_COMBO:-8}" \
-  --enforce_exact_length 1 \
+  --enforce_exact_length 0 \
   --temperature 1.0 \
   --top_p 0.95 \
   --repetition_penalty 1.05 \

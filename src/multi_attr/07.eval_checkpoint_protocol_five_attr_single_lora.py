@@ -816,7 +816,7 @@ def _run_generation(
         seed=int(args.seed),
         max_attempts_multiplier=int(args.max_attempts_multiplier),
         attr_weights=_weight_list_from_args(args),
-        enforce_exact_length=(int(getattr(args, "enforce_exact_length", 1)) == 1),
+        enforce_exact_length=(int(getattr(args, "enforce_exact_length", 0)) == 1),
         default_length=int(getattr(args, "default_length", 24)),
         return_stats=True,
     )
@@ -999,7 +999,7 @@ def main() -> None:
     p.add_argument("--attr_weights", type=str, default="1,1,1,1,1")
     p.add_argument("--default_length", type=int, default=24)
     p.add_argument("--eval_lengths", type=str, default="", help="逗号分隔评估长度；空则使用 default_length")
-    p.add_argument("--enforce_exact_length", type=int, default=1)
+    p.add_argument("--enforce_exact_length", type=int, choices=[0], default=0)
     p.add_argument(
         "--combo_eval_script",
         default="",

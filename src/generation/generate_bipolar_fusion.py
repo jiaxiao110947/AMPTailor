@@ -58,7 +58,7 @@ def _unique_tasks(bits: str, length: int):
 
 
 @torch.no_grad()
-def generate_batch(model, tok, device, combo, n, *, kind, alpha, attr_weights, temperature, top_p, repetition_penalty, lib, bip, use_bf16):
+def generate_batch(model, tok, device, combo, n, *, kind, alpha, attr_weights, temperature, top_p, repetition_penalty, lib, bip, use_bf16, max_new_tokens=256):
     bits, length = lib.parse_condition(combo, default_length=None)
     wanted, opposite, tasks = _unique_tasks(bits, length)
     weights = bip.parse_attr_weights(attr_weights)
@@ -70,7 +70,11 @@ def generate_batch(model, tok, device, combo, n, *, kind, alpha, attr_weights, t
     content = [task for task in wanted if not str(task).startswith("LEN")]
     id_to_aa, aa_ids = lib._build_aa_char_maps(tok)
     aa_ids = aa_ids.to(device)
-    for _ in range(int(length)):
+    if int(max_new_tokens) <= 0 or batch <= 0:
+        raise ValueError("max_new_tokens and n must be positive")
+    eos_id = int(tok.eos_token_id)
+    finished = torch.zeros(batch, dtype=torch.bool, device=device)
+    for _ in range(int(max_new_tokens)):
         logits = {}
         for task, token_ids in prompt_ids.items():
             prefix = torch.tensor(token_ids, dtype=torch.long, device=device).unsqueeze(0).expand(batch, -1)
@@ -111,11 +115,21 @@ def generate_batch(model, tok, device, combo, n, *, kind, alpha, attr_weights, t
         masked = torch.full_like(z, -float("inf"))
         masked[:, aa_ids] = z[:, aa_ids]
         z = lib._top_k_top_p_filtering(masked, top_k=0, top_p=float(top_p))
+        z[finished] = -float("inf")
+        z[finished, eos_id] = 0.0
         nxt = torch.multinomial(torch.softmax(z, dim=-1), num_samples=1)
+        finished |= nxt.squeeze(-1).eq(eos_id)
         generated = torch.cat([generated, nxt], dim=1)
+        if bool(finished.all()):
+            break
+    if not bool(finished.all()):
+        print(f"[WARN] {int((~finished).sum().item())} sequences reached max_new_tokens without EOS", flush=True)
     seqs = []
     for i in range(batch):
-        seqs.append("".join(id_to_aa[int(x)] for x in generated[i].tolist() if int(x) in id_to_aa))
+        ids = generated[i].tolist()
+        if eos_id in ids:
+            ids = ids[:ids.index(eos_id)]
+        seqs.append("".join(id_to_aa[int(x)] for x in ids if int(x) in id_to_aa))
     return bits, int(length), seqs
 
 
@@ -130,6 +144,7 @@ def main() -> None:
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top_p", type=float, default=0.95)
     parser.add_argument("--repetition_penalty", type=float, default=1.05)
+    parser.add_argument("--max_new_tokens", type=int, default=256, help="Safety cap; target length is controlled by the prompt and EOS")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--bf16", action="store_true")
     parser.add_argument("--adapter", default="")
@@ -163,6 +178,7 @@ def main() -> None:
         lib=lib,
         bip=bip,
         use_bf16=bool(args.bf16),
+        max_new_tokens=int(args.max_new_tokens),
     )
     with out_fasta.open("w", encoding="utf-8") as handle:
         for i, seq in enumerate(seqs):
