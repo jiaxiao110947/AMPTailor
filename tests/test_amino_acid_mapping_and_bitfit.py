@@ -53,9 +53,25 @@ class MappingAndBitFitTests(unittest.TestCase):
         tok = Tokenizer([c for aa in AA20 for c in (aa, aa.lower())])
         mapping, allowed = self.maps['_build_aa_char_maps'](tok)
         self.assertEqual(set(mapping.values()), set(AA20))
-        self.assertEqual(len(mapping), 40)
+        self.assertEqual(len(mapping), 20)
+        self.assertEqual(len(allowed), 21)
+        for token_id, aa in mapping.items():
+            self.assertEqual(tok.decode([token_id]), aa)
         self.assertIn(tok.eos_token_id, allowed.tolist())
         self.assertNotIn(tok.eos_token_id, mapping)
+
+    def test_uppercase_is_preferred_even_when_lowercase_comes_first(self):
+        tok = Tokenizer(list(AA20.lower()) + list(AA20))
+        mapping, _ = self.maps['_build_aa_char_maps'](tok)
+        for token_id, aa in mapping.items():
+            self.assertEqual(tok.decode([token_id]), aa)
+            self.assertGreater(token_id, 20)
+
+    def test_lowercase_fallback_without_uppercase_tokens(self):
+        tok = Tokenizer(list(AA20.lower()))
+        mapping, allowed = self.maps['_build_aa_char_maps'](tok)
+        self.assertEqual(set(mapping.values()), set(AA20))
+        self.assertEqual(len(allowed), 21)
 
     def test_added_amino_acid_tokens_are_scanned(self):
         tok = Tokenizer(list(AA20), base_size=11)

@@ -28,17 +28,19 @@ def _clean_seq(seq: str) -> str:  # clean seq
     return s  # return
 
 
+def drop_echoed_len_control(text: str) -> str:
+    """Remove explicit echoed LEN<number>: prefixes, preserving real LEN residues."""
+    return re.sub(r"^(?:LEN[1-9][0-9]*:\s*)+", "", str(text).strip(), flags=re.IGNORECASE)
+
+
 def extract_peptide_after_length_prompt(text: str, prompt: str) -> str:
-    """Count only post-prompt amino acids; drop echoed LEN control, not EOS (<|endoftext|> has no AA)."""
+    """Extract residues after the prompt and before the first EOS marker."""
     body = str(text).strip()
     p = str(prompt).strip()
     if p and body.upper().startswith(p.upper()):
         body = body[len(p) :]
-    seq = _clean_seq(body)
-    # Model often re-emits literal "LEN" after LEN{n}:; L/E/N are valid AA but here are control tokens.
-    if seq.startswith("LEN") and len(seq) > 3 and not seq[3].isdigit():
-        seq = seq[3:]
-    return seq
+    body = re.split(re.escape(EOS_TEXT), body, maxsplit=1, flags=re.IGNORECASE)[0]
+    return _clean_seq(drop_echoed_len_control(body))
 
 def ensure_tokenizer(tokenizer_dir: str) -> GPT2TokenizerFast:  # ensure tokenizer
     tok = GPT2TokenizerFast.from_pretrained(tokenizer_dir)  # load
