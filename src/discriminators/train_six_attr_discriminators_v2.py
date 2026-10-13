@@ -95,7 +95,8 @@ class LoraDiscriminator(nn.Module):
         self.head = nn.Linear(hidden, n_labels)
 
     def forward(self, input_ids, attention_mask) -> torch.Tensor:
-        out = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
+        position_ids = (attention_mask.long().cumsum(-1) - 1).clamp(min=0)
+        out = self.encoder(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
         pooled = self.dropout(out.last_hidden_state[:, -1])
         return self.head(pooled)
 

@@ -283,7 +283,38 @@ def load_multi_adapters(adapter_root: str, tokenizer_dir: str, device_str: str =
     return model, tok, device, index
 
 
+def _params_for_all_adapters(model, adapter_names=ADAPTERS):
+    """Collect the union of trainable adapter parameters without unfreezing the base."""
+    original = model.active_adapter
+    params = {}
+    try:
+        for name in adapter_names:
+            model.set_adapter(name)
+            for param in model.parameters():
+                if param.requires_grad:
+                    params[id(param)] = param
+    finally:
+        model.set_adapter(original)
+    return list(params.values())
+
+
+def _step_adapter_optimizer(params, opt, sched, pending, grad_accum):
+    """Flush accumulated gradients, including a shorter final window."""
+    if pending <= 0:
+        return
+    active = [p for p in params if p.grad is not None]
+    if pending < grad_accum:
+        for param in active:
+            param.grad.mul_(float(grad_accum) / float(pending))
+    torch.nn.utils.clip_grad_norm_(active, 1.0)
+    opt.step()
+    sched.step()
+    opt.zero_grad(set_to_none=True)
+
+
 def train(args) -> Path:
+    if min(int(args.max_steps), int(args.train_bs), int(args.grad_accum), int(args.save_steps), int(args.logging_steps)) <= 0:
+        raise ValueError("step, batch, accumulation, save, and logging counts must be positive")
     os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     status_path = Path(args.status_path) if args.status_path else None
@@ -337,9 +368,12 @@ def train(args) -> Path:
     n_tr = sum(p.numel() for p in model.parameters() if p.requires_grad)
     status(status_path, f"trainable={n_tr:,} device={device} peft_adapters={list(model.peft_config)}")
 
-    params = [p for p in model.parameters() if p.requires_grad]
+    params = _params_for_all_adapters(model)
     opt = AdamW(params, lr=float(args.lr), weight_decay=float(args.weight_decay))
-    total_updates = max(1, int(args.max_steps) // max(1, int(args.grad_accum)))
+    valid_steps = sum(bool(pools[ADAPTERS[(step - 1) % len(ADAPTERS)]]) for step in range(1, int(args.max_steps) + 1))
+    if not valid_steps:
+        raise ValueError("No samples available for the requested adapter training steps")
+    total_updates = (valid_steps + int(args.grad_accum) - 1) // int(args.grad_accum)
     warmup = max(1, int(total_updates * float(args.warmup_ratio)))
     sched = get_cosine_schedule_with_warmup(opt, warmup, total_updates)
 
@@ -349,6 +383,7 @@ def train(args) -> Path:
     n_seen = 0
     opt.zero_grad(set_to_none=True)
     order = list(ADAPTERS)
+    pending = 0
     for step in range(1, int(args.max_steps) + 1):
         adapter = order[(step - 1) % len(order)]
         items = pools[adapter]
@@ -389,13 +424,12 @@ def train(args) -> Path:
                     loss_m = F.relu(float(args.margin) + nll_true - nll_opp).mean()
             loss = (loss_lm + float(args.lambda_contrastive) * loss_m) / max(1, int(args.grad_accum))
         loss.backward()
+        pending += 1
         running += float(loss_lm.detach())
         n_seen += 1
-        if step % int(args.grad_accum) == 0:
-            torch.nn.utils.clip_grad_norm_(params, 1.0)
-            opt.step()
-            sched.step()
-            opt.zero_grad(set_to_none=True)
+        if pending == int(args.grad_accum) or step == int(args.max_steps):
+            _step_adapter_optimizer(params, opt, sched, pending, int(args.grad_accum))
+            pending = 0
         if step % int(args.logging_steps) == 0 or step == 1:
             lr = sched.get_last_lr()[0]
             status(
@@ -412,6 +446,15 @@ def train(args) -> Path:
                 json.dumps({"step": step, "elapsed_sec": time.time() - t0}, indent=2) + "\n"
             )
             status(status_path, f"saved {ckpt}")
+    if pending:
+        _step_adapter_optimizer(params, opt, sched, pending, int(args.grad_accum))
+    # The final raw step can be skipped when its adapter pool is empty.
+    final_ckpt = out / f"checkpoint-{int(args.max_steps)}"
+    if not final_ckpt.is_dir():
+        save_all_adapters(model, final_ckpt, args.init_model_dir)
+        (final_ckpt / "train_state.json").write_text(
+            json.dumps({"step": int(args.max_steps), "elapsed_sec": time.time() - t0}) + "\n"
+        )
     save_all_adapters(model, out / "adapters", args.init_model_dir)
     status(status_path, f"train done {time.time()-t0:.0f}s")
     return out / f"checkpoint-{int(args.max_steps)}"

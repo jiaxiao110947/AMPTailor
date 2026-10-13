@@ -85,17 +85,22 @@ def generate_length_cond(
     rep_window: int,
     max_homopolymer_run: int,
     no_repeat_ngram_size: int,
+    max_attempts_multiplier: int = 10,
 ) -> Tuple[List[str], List[int]]:
     """Return (seqs, target_lens per seq). Length via LEN{n}: + EOS; min_new_tokens=0."""
+    if min(int(target_length), int(nsamples), int(batch_size), int(max_new_tokens), int(max_attempts_multiplier)) <= 0:
+        raise ValueError("target_length, nsamples, batch_size, max_new_tokens, and attempt multiplier must be positive")
     L = int(target_length)
     prompt = make_length_prompt(L)
     max_new = int(max_new_tokens)
 
     seqs: List[str] = []
     targets: List[int] = []
-    got = 0
-    while got < int(nsamples):
-        cur = min(int(batch_size), int(nsamples) - got)
+    got = attempts = 0
+    max_attempts = int(nsamples) * int(max_attempts_multiplier)
+    while got < int(nsamples) and attempts < max_attempts:
+        cur = min(int(batch_size), int(nsamples) - got, max_attempts - attempts)
+        attempts += cur
         outs = gen.generate_batch(
             prompts=[prompt] * int(cur),
             max_new_tokens=max_new,
@@ -120,7 +125,9 @@ def generate_length_cond(
             got += 1
             if got >= int(nsamples):
                 break
-    print(f"[len] target={L} collected={got}/{nsamples}", flush=True)
+    if got < int(nsamples):
+        print(f"[WARN] target={L}: collected {got}/{nsamples} after {attempts} attempts; empty outputs were not forced to continue", flush=True)
+    print(f"[len] target={L} collected={got}/{nsamples} attempts={attempts}", flush=True)
     return seqs, targets
 
 

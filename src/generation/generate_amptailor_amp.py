@@ -168,7 +168,13 @@ class AMPTailorGeneratorAAOnly:  # tri generator
         print(f"[mode] AMPTailor strict AA-only (AA20+EOS). allowed={int(allowed.sum().item())}/{vs}", flush=True)  # log
 
     @torch.no_grad()  # no grad
-    def generate_batch(self, prompts: List[str], max_new_tokens: int, min_new_tokens: int, alpha: float, alpha_eos: Optional[float], temperature: float, top_k: int, top_p: float, keep_eos_after_filter: bool) -> List[str]:  # gen batch
+    def generate_batch(self, prompts: List[str], max_new_tokens: int, min_new_tokens: int, alpha: float, alpha_eos: Optional[float], temperature: float, top_k: int, top_p: float, keep_eos_after_filter: bool, repetition_penalty: float = 1.0, rep_window: int = 64, max_homopolymer_run: int = 0, no_repeat_ngram_size: int = 0) -> List[str]:  # gen batch
+        if not prompts or int(max_new_tokens) <= 0 or int(min_new_tokens) < 0:
+            raise ValueError("prompts must be nonempty; max_new_tokens > 0 and min_new_tokens >= 0")
+        if float(temperature) <= 0 or not 0 < float(top_p) <= 1 or int(top_k) < 0:
+            raise ValueError("temperature > 0, 0 < top_p <= 1, and top_k >= 0 are required")
+        if float(repetition_penalty) <= 0 or min(int(rep_window), int(max_homopolymer_run), int(no_repeat_ngram_size)) < 0:
+            raise ValueError("repetition_penalty > 0 and nonnegative repetition limits are required")
         if alpha_eos is None:  # default
             alpha_eos = float(alpha)  # set
         enc = self.tok(prompts, add_special_tokens=False, padding=True, return_tensors="pt")  # encode
@@ -177,7 +183,8 @@ class AMPTailorGeneratorAAOnly:  # tri generator
         position_ids = attention_mask.long().cumsum(dim=1) - 1  # pos
         position_ids = position_ids.masked_fill(attention_mask == 0, 0)  # pad pos
         bsz = int(input_ids.shape[0])  # bsz
-        prompt_lens = enc["attention_mask"].sum(dim=1).tolist()  # prompt lens
+        prompt_width = int(input_ids.shape[1])
+        generation_starts = [prompt_width] * bsz
         unfinished = torch.ones(bsz, dtype=torch.long, device=self.device)  # unfinished
         past_b = None  # past base
         past_e = None  # past expert
@@ -195,21 +202,17 @@ class AMPTailorGeneratorAAOnly:  # tri generator
             oe = self.expert(input_ids=inp, attention_mask=am, position_ids=pos, past_key_values=past_e, use_cache=True)  # forward expert
             oa = self.anti(input_ids=inp, attention_mask=am, position_ids=pos, past_key_values=past_a, use_cache=True)  # forward anti
             past_b, past_e, past_a = ob.past_key_values, oe.past_key_values, oa.past_key_values  # cache
-            if step == 0:  # first step logits index
-                last_idx = (attention_mask.sum(dim=1) - 1)  # last index
-                base_next = ob.logits[torch.arange(bsz, device=self.device), last_idx, :]  # base
-                expert_next = oe.logits[torch.arange(bsz, device=self.device), last_idx, :]  # expert
-                anti_next = oa.logits[torch.arange(bsz, device=self.device), last_idx, :]  # anti
-            else:  # later
-                base_next = ob.logits[:, -1, :]  # base
-                expert_next = oe.logits[:, -1, :]  # expert
-                anti_next = oa.logits[:, -1, :]  # anti
+            # Prompts are left-padded, so their final valid token is the last column.
+            base_next = ob.logits[:, -1, :]
+            expert_next = oe.logits[:, -1, :]
+            anti_next = oa.logits[:, -1, :]
 
             base_for_trunc = base_next.clone()  # base copy
             base_for_trunc = base_for_trunc.masked_fill(~self.allowed_token_mask.unsqueeze(0), -float("inf"))  # AA-only
             if int(min_new_tokens) > 0 and int(step) < int(min_new_tokens):  # min len
                 base_for_trunc[:, int(self.eos_id)] = -float("inf")  # forbid eos
-            base_for_trunc = torch.nan_to_num(base_for_trunc, nan=-1e4, posinf=1e4, neginf=-1e4)  # sanitize
+            if torch.isnan(base_for_trunc).any() or torch.isposinf(base_for_trunc).any():
+                raise RuntimeError("Invalid prior logits in guided generation")
             if float(temperature) != 1.0:  # temp for gating
                 base_for_trunc = base_for_trunc / float(temperature)  # scale
 
@@ -231,25 +234,27 @@ class AMPTailorGeneratorAAOnly:  # tri generator
             logits = base_trunc + float(alpha) * (expert_next - anti_next)  # amptailor combine
             logits[:, int(self.eos_id)] = base_trunc[:, int(self.eos_id)] + float(alpha_eos) * (expert_next[:, int(self.eos_id)] - anti_next[:, int(self.eos_id)])  # eos combine
 
+            _apply_repetition_penalty_logits(logits, input_ids, generation_starts,
+                                             repetition_penalty, rep_window, self.aa_no_eos, self.eos_id)
+            _apply_homopolymer_cap_logits(logits, input_ids, generation_starts,
+                                         max_homopolymer_run, self.eos_id, self.aa_no_eos)
+            _apply_no_repeat_ngram_logits(logits, input_ids, generation_starts,
+                                         no_repeat_ngram_size, self.eos_id, self.aa_no_eos)
+
             if int(min_new_tokens) > 0 and int(step) < int(min_new_tokens):  # min len
                 logits[:, int(self.eos_id)] = -float("inf")  # forbid eos
             if (unfinished == 0).any():  # finished
                 logits[unfinished == 0, :] = -float("inf")  # block
                 logits[unfinished == 0, int(self.eos_id)] = 0.0  # force eos
             logits = logits.masked_fill(~self.allowed_token_mask.unsqueeze(0), -float("inf"))  # AA-only
-            logits = torch.nan_to_num(logits, nan=-1e4, posinf=1e4, neginf=-1e4)  # sanitize
             if float(temperature) != 1.0:  # temp for sampling
                 logits = logits / float(temperature)  # scale
 
             probs = torch.softmax(logits, dim=-1)  # probs
             bad = (torch.isnan(probs).any(dim=-1) | torch.isinf(probs).any(dim=-1) | (probs.sum(dim=-1) <= 0))  # bad rows
-            if bool(bad.any().item()):  # fix bad
-                probs[bad] = 0.0  # zero
-                if int(min_new_tokens) > 0 and int(step) < int(min_new_tokens):  # early
-                    probs[bad][:, self.aa_no_eos] = 1.0  # uniform aa
-                else:  # allow eos
-                    probs[bad][:, int(self.eos_id)] = 1.0  # eos
-                probs[bad] = probs[bad] / probs[bad].sum(dim=-1, keepdim=True)  # renorm
+            if bool(bad.any().item()):
+                rows = bad.nonzero(as_tuple=False).view(-1).tolist()
+                raise RuntimeError(f"Invalid or empty guided sampling distribution at step {step}, rows={rows}")
 
             next_tokens = torch.multinomial(probs, num_samples=1, generator=self.rng).squeeze(1)  # sample
             tokens_to_add = next_tokens * unfinished + int(self.tok.pad_token_id) * (1 - unfinished)  # add token
@@ -265,7 +270,7 @@ class AMPTailorGeneratorAAOnly:  # tri generator
 
         outs: List[str] = []  # outs
         for i in range(int(bsz)):  # decode
-            gen_ids = input_ids[i, int(prompt_lens[i]):].tolist()  # gen ids
+            gen_ids = input_ids[i, prompt_width:].tolist()  # gen ids
             if int(self.eos_id) in gen_ids:  # cut eos
                 gen_ids = gen_ids[:gen_ids.index(int(self.eos_id))]  # cut
             gen_text = self.tok.decode(gen_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)  # decode
@@ -340,18 +345,21 @@ def _apply_repetition_penalty_logits(
     penalty: float,
     window: int,
     allowed_mask: torch.Tensor,
+    eos_id: Optional[int] = None,
 ) -> None:
     if float(penalty) == 1.0:
         return
     bsz, seq_len = input_ids.shape
     for b in range(bsz):
         pl = int(prompt_lens[b])
-        start = max(pl, seq_len - int(window))
+        start = max(pl, seq_len - int(window)) if int(window) > 0 else pl
         ids = [int(x) for x in input_ids[b, start:seq_len].tolist()]
         if not ids:
             continue
         row = logits[b]
         for tid in set(ids):
+            if tid == eos_id or not bool(allowed_mask[tid]):
+                continue
             if row[tid] > 0:
                 row[tid] = row[tid] / float(penalty)
             else:
@@ -366,7 +374,6 @@ def _apply_homopolymer_cap_logits(
     eos_id: int,
     allowed_mask: torch.Tensor,
 ) -> None:
-    _ = (eos_id, allowed_mask)
     m = int(max_run)
     if m <= 0:
         return
@@ -377,6 +384,8 @@ def _apply_homopolymer_cap_logits(
         if not gen_ids:
             continue
         last = int(gen_ids[-1])
+        if last == int(eos_id) or not bool(allowed_mask[last]):
+            continue
         run = 1
         for tid in reversed(gen_ids[:-1]):
             if int(tid) == last:
@@ -395,7 +404,6 @@ def _apply_no_repeat_ngram_logits(
     eos_id: int,
     allowed_mask: torch.Tensor,
 ) -> None:
-    _ = (eos_id, allowed_mask)
     n = int(ngram_size)
     if n <= 0:
         return
@@ -414,6 +422,8 @@ def _apply_no_repeat_ngram_logits(
                 if tuple(gen_ids[i : i + n - 1]) == prefix:
                     banned.add(int(gen_ids[i + n - 1]))
         for tid in banned:
+            if int(tid) == int(eos_id) or not bool(allowed_mask[int(tid)]):
+                continue
             logits[b, int(tid)] = -float("inf")
 
 

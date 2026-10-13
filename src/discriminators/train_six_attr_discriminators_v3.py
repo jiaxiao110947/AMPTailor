@@ -193,7 +193,8 @@ class V3Discriminator(nn.Module):
         )
 
     def forward(self, input_ids, attention_mask, aa_ids, aa_mask, phys, species_ids) -> torch.Tensor:
-        out = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
+        position_ids = (attention_mask.long().cumsum(-1) - 1).clamp(min=0)
+        out = self.encoder(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
         mask = attention_mask.unsqueeze(-1).to(out.last_hidden_state.dtype)
         pooled = (out.last_hidden_state * mask).sum(1) / mask.sum(1).clamp(min=1.0)
         aa_h = self.aa_emb(aa_ids)

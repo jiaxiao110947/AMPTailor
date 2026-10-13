@@ -179,8 +179,11 @@ def payload_from_english_fasta(fasta, out_dir, models, toks, device, thr: float 
     }
     per_attr_satisfaction = {}
     for src, dst in attr_map.items():
-        sat = float((stats.get("per_attr") or {}).get(src, 0.0))
-        per_attr_satisfaction[dst] = {"satisfaction": sat, "n_common": float(stats.get("n", 0))}
+        per_attr = stats.get("per_attr") or {}
+        count = int((stats.get("per_attr_n") or {}).get(src, 0))
+        if src not in per_attr or count <= 0:
+            continue
+        per_attr_satisfaction[dst] = {"satisfaction": float(per_attr[src]), "n_common": float(count)}
     lc = _length_stats(length_pairs)
     payload = {
         "scorer": "english_classifiers",
@@ -297,8 +300,9 @@ class ComboEvalEnglishDisc(T.ComboEvalCallback):
             metrics[f"{prefix}_amp_pos_rate"] = float(payload.get("amp_pos_rate", 0.0))
             metrics[f"{prefix}_precise_rate"] = float(payload.get("precise_amp_attr_rate", 0.0))
             pas = payload.get("per_attr_satisfaction") or {}
-            for attr in ("gram_pos", "gram_neg", "fungus", "safety", "length"):
-                metrics[f"{prefix}_attr_{attr}"] = float((pas.get(attr) or {}).get("satisfaction", 0.0))
+            for attr, rec in pas.items():
+                if float(rec.get("n_common", 0)) > 0:
+                    metrics[f"{prefix}_attr_{attr}"] = float(rec["satisfaction"])
         self._cache_combo_metrics(metrics, step)
         try:
             import wandb

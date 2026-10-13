@@ -103,7 +103,8 @@ class MicLoraDisc(nn.Module):
         self.head = nn.Linear(hidden, 5)
 
     def forward(self, input_ids, attention_mask):
-        out = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
+        position_ids = (attention_mask.long().cumsum(-1) - 1).clamp(min=0)
+        out = self.encoder(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
         return self.head(self.dropout(out.last_hidden_state[:, -1]))
 
 

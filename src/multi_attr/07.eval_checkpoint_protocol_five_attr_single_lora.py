@@ -471,16 +471,16 @@ def run_control_expert_fasta_eval(
         st = combo_stats.setdefault(combo_full or combo, {"n_common": 0.0, "n_all_ok": 0.0})
         st["n_common"] += 1.0
         st["n_all_ok"] += 1.0 if (ok_gp and ok_gn and ok_fu and ok_sf and ok_len) else 0.0
-        attr_stats["gram_pos"]["n_common"] += 1.0
-        attr_stats["gram_pos"]["n_ok"] += 1.0 if ok_gp else 0.0
-        attr_stats["gram_neg"]["n_common"] += 1.0
-        attr_stats["gram_neg"]["n_ok"] += 1.0 if ok_gn else 0.0
-        attr_stats["fungus"]["n_common"] += 1.0
-        attr_stats["fungus"]["n_ok"] += 1.0 if ok_fu else 0.0
-        attr_stats["safety"]["n_common"] += 1.0
-        attr_stats["safety"]["n_ok"] += 1.0 if ok_sf else 0.0
-        attr_stats["length"]["n_common"] += 1.0
-        attr_stats["length"]["n_ok"] += 1.0 if ok_len else 0.0
+        for name, requested, ok in (
+            ("gram_pos", combo[0].upper() != "X", ok_gp),
+            ("gram_neg", combo[1].upper() != "X", ok_gn),
+            ("fungus", combo[2].upper() != "X", ok_fu),
+            ("safety", combo[3].upper() != "X", ok_sf),
+            ("length", target_len is not None, ok_len),
+        ):
+            if requested:
+                attr_stats[name]["n_common"] += 1.0
+                attr_stats[name]["n_ok"] += 1.0 if ok else 0.0
 
     per_combo: Dict[str, Any] = {}
     vals: List[float] = []
@@ -500,6 +500,8 @@ def run_control_expert_fasta_eval(
     per_attr_satisfaction: Dict[str, Dict[str, float]] = {}
     attr_sats: List[float] = []
     for attr, st in attr_stats.items():
+        if st["n_common"] <= 0:
+            continue
         sat = float(st["n_ok"]) / float(max(1.0, st["n_common"]))
         per_attr_satisfaction[attr] = {"satisfaction": sat, "n_common": float(st["n_common"])}
         attr_sats.append(sat)
@@ -534,6 +536,7 @@ def run_control_expert_fasta_eval(
         "length_control_by_tier": length_control_by_tier,
         "per_combo": per_combo,
         "per_attr_satisfaction": per_attr_satisfaction,
+        "per_attr_n": {name: int(st["n_common"]) for name, st in attr_stats.items()},
     }
     (out / "eval_payload.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)

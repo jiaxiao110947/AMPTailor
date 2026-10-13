@@ -150,7 +150,8 @@ class MultiHeadDiscriminator(nn.Module):
                     p.requires_grad = False
 
     def forward(self, input_ids, attention_mask) -> Dict[str, torch.Tensor]:
-        out = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
+        position_ids = (attention_mask.long().cumsum(-1) - 1).clamp(min=0)
+        out = self.encoder(input_ids=input_ids, attention_mask=attention_mask, position_ids=position_ids)
         hidden = out.last_hidden_state
         pooled = hidden[:, -1]
         pooled = self.dropout(pooled)

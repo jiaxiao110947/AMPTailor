@@ -218,20 +218,27 @@ def adherence_from_rows(rows: List[dict], thr: float) -> dict:
         key = f"{bits}:{tlen}" if tlen is not None else bits
         combo_stats[key]["n"] += 1
         combo_stats[key]["ok"] += 1.0 if (ok_gp and ok_gn and ok_fu and ok_sf and ok_len) else 0.0
-        for name, ok in (("gp", ok_gp), ("gn", ok_gn), ("fu", ok_fu), ("sf", ok_sf), ("length", ok_len)):
-            attr[name]["n"] += 1
-            attr[name]["ok"] += 1.0 if ok else 0.0
+        for name, requested, ok in (
+            ("gp", bits[0] != "X", ok_gp), ("gn", bits[1] != "X", ok_gn),
+            ("fu", bits[2] != "X", ok_fu), ("sf", bits[3] != "X", ok_sf),
+            ("length", tlen is not None, ok_len),
+        ):
+            if requested:
+                attr[name]["n"] += 1
+                attr[name]["ok"] += 1.0 if ok else 0.0
         n_all += 1
         row["ok_attr"] = bool(ok_gp and ok_gn and ok_fu and ok_sf)
         row["ok_combo"] = bool(ok_gp and ok_gn and ok_fu and ok_sf and ok_len)
     adhs = [st["ok"] / max(1.0, st["n"]) for st in combo_stats.values()]
-    per_attr = {k: (v["ok"] / max(1.0, v["n"])) for k, v in attr.items()}
+    per_attr = {k: v["ok"] / v["n"] for k, v in attr.items() if v["n"] > 0}
+    per_attr_n = {k: int(v["n"]) for k, v in attr.items()}
     return {
         "n": n_all,
         "combo_adherence_mean": float(sum(adhs) / max(1, len(adhs))) if adhs else 0.0,
         "combo_adherence_min": float(min(adhs)) if adhs else 0.0,
         "attr_mean_satisfaction": float(sum(per_attr.values()) / max(1, len(per_attr))),
         "per_attr": per_attr,
+        "per_attr_n": per_attr_n,
         "amp_pos_rate": 0.0,
         "precise_amp_attr_rate": 0.0,
         "per_combo": {k: {"n": v["n"], "adherence": v["ok"] / max(1.0, v["n"])} for k, v in combo_stats.items()},
