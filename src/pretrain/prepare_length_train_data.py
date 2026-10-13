@@ -15,6 +15,10 @@ LEN_PREFIX_RX = re.compile(r"^LEN([1-9][0-9]*):")
 
 def _clean_seq(raw: str) -> str:
     s = raw.strip().upper().replace(" ", "")
+    # Length prefixes are conditioning metadata, not peptide residues.
+    # Strip repeated prefixes too, so reprocessing cannot add LEN residues.
+    while LEN_PREFIX_RX.match(s):
+        s = LEN_PREFIX_RX.sub("", s, count=1)
     if s.endswith(EOS_TEXT.upper()):
         s = s[: -len(EOS_TEXT)]
     return "".join(c for c in s if c in AA20)
